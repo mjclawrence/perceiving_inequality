@@ -1,5 +1,3 @@
-# Does this do anything? What about now?
-
 library(tidyverse)
 
 # Load all qualtrics responses
