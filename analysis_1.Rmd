@@ -1,0 +1,446 @@
+---
+title: "Analysis 1"
+output: pdf_document
+---
+
+# Set Up
+
+```{r}
+library(tidyverse)
+library(ggthemes)
+mturk <- read.csv("/users/lawrence/desktop/perceiving_inequality/mturk/mturk_clean.csv")
+```
+
+# Clean Up
+
+Get rid of outlier salary estimates
+
+```{r}
+mturk <- mturk %>%
+  mutate(qest3_1 = ifelse((qest1_1 > 
+                             ((quantile(mturk$qest1_1, .75, na.rm=TRUE)) + (1.5*IQR(qest1_1, na.rm=TRUE)))) |
+                          (qest1_1 < 
+                             ((quantile(mturk$qest1_1, .25, na.rm=TRUE)) - (1.5*IQR(qest1_1, na.rm=TRUE)))), 
+                          1, 0),
+         qest3_2 = ifelse((qest1_2 > 
+                             ((quantile(mturk$qest1_2, .75, na.rm=TRUE)) + (1.5*IQR(qest1_2, na.rm=TRUE)))) |
+                          (qest1_2 < 
+                             ((quantile(mturk$qest1_2, .25, na.rm=TRUE)) - (1.5*IQR(qest1_2, na.rm=TRUE)))), 
+                          1, 0),
+         qest3_3 = ifelse((qest1_3 > 
+                             ((quantile(mturk$qest1_3, .75, na.rm=TRUE)) + (1.5*IQR(qest1_3, na.rm=TRUE)))) |
+                          (qest1_3 < 
+                             ((quantile(mturk$qest1_3, .25, na.rm=TRUE)) - (1.5*IQR(qest1_3, na.rm=TRUE)))), 
+                          1, 0),
+         qest3_4 = ifelse((qest1_4 > 
+                             ((quantile(mturk$qest1_4, .75, na.rm=TRUE)) + (1.5*IQR(qest1_4, na.rm=TRUE)))) |
+                          (qest1_4 < 
+                             ((quantile(mturk$qest1_4, .25, na.rm=TRUE)) - (1.5*IQR(qest1_4, na.rm=TRUE)))), 
+                          1, 0),
+         qest3_5 = ifelse((qest1_5 > 
+                             ((quantile(mturk$qest1_5, .75, na.rm=TRUE)) + (1.5*IQR(qest1_5, na.rm=TRUE)))) |
+                          (qest1_5 < 
+                             ((quantile(mturk$qest1_5, .25, na.rm=TRUE)) - (1.5*IQR(qest1_5, na.rm=TRUE)))), 
+                          1, 0)) %>%
+  filter(qest3_1 == 0) %>%
+  filter(qest3_2 == 0) %>%
+  filter(qest3_3 == 0) %>%
+  filter(qest3_4 == 0) %>%
+  filter(qest3_5 == 0)
+```
+
+From wide to long
+```{r}
+mturk_gather <- mturk %>%
+   gather(job, estimate, starts_with("qest")) %>%
+   mutate(question = str_sub(job,5,5),
+          job = str_sub(job,7,7)) %>%
+   spread(question, estimate) %>%
+   rename(est_salary = "1",
+          est_rank = "2",
+          salary_outlier = "3") %>%
+   mutate(job = factor(job,
+                       labels = c("Electrical Engineer",
+                                  "Reporter",
+                                  "Investment Banker",
+                                  "Janitor",
+                                  "Geology Research Associate")),
+          job = factor(job,
+                       levels = c("Janitor",
+                                  "Reporter",
+                                  "Geology Research Associate",
+                                  "Electrical Engineer",
+                                  "Investment Banker")),
+          est_salary = as.numeric(est_salary),
+          est_rank = as.numeric(est_rank)) %>%
+  filter(salary_outlier == 0)
+```
+
+Clean up answers to pre/post experiment questions.
+```{r}
+mturk <- mturk %>%
+  mutate(standard_living_small_diffs = factor(standard_living_small_diffs,
+                                              levels = c("Strongly disagree",
+                                                         "Disagree",
+                                                         "Neutral",
+                                                         "Agree",
+                                                         "Strongly agree")),
+         incdiff_toolarge = factor(incdiff_toolarge,
+                                   levels = c("Strongly disagree",
+                                                         "Disagree",
+                                                         "Neutral",
+                                                         "Agree",
+                                                         "Strongly agree")))
+
+treatment_table_prop <- round(prop.table(ftable(mturk$treatment, mturk$standard_living_small_diffs, mturk$incdiff_toolarge),1),3)
+
+treatment_table_n <- ftable(mturk$treatment, mturk$standard_living_small_diffs, mturk$incdiff_toolarge)
+```
+
+
+```{r}
+before_after <- mturk %>%
+  group_by(treatment, standard_living_small_diffs) %>%
+  summarise(strongly_disagree = mean(incdiff_toolarge=="Strongly disagree"),
+            disagree = mean(incdiff_toolarge=="Disagree"),
+            neutral = mean(incdiff_toolarge=="Neutral"),
+            agree = mean(incdiff_toolarge=="Agree"),
+            strongly_agree = mean(incdiff_toolarge=="Strongly agree")) %>%
+  gather(incdiff_toolarge, prop, strongly_disagree:strongly_agree) %>%
+  mutate(prop = round(prop, 3),
+         prop = ifelse(prop == 0, NA, prop),
+         incdiff_toolarge = factor(incdiff_toolarge,
+                                   levels = c("strongly_disagree",
+                                              "disagree",
+                                              "neutral",
+                                              "agree",
+                                              "strongly_agree")))
+```
+
+# Basic Descriptives
+
+Distribution of estimated salaries by job
+
+```{r}
+salary_plot <- ggplot(mturk_gather, aes(x = est_salary,
+                                         color = job, fill = job))
+salary_plot + geom_density() + facet_grid(job~.) +
+scale_fill_viridis_d() + scale_color_viridis_d() + 
+   theme(legend.position = "bottom")
+```
+
+```{r}
+violin_plot <- ggplot(mturk_gather, aes(x = job, y = est_salary, fill = job))
+violin_plot + geom_violin() + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+Distribution of estimated ranks by job 
+
+```{r}
+rank_plot <- ggplot(mturk_gather, aes(x = est_rank,
+                                         color = job, fill = job))
+rank_plot + geom_histogram() + facet_grid(job~.) +
+   scale_fill_viridis_d() + scale_color_viridis_d() + 
+   theme(legend.position = "bottom")
+```
+
+Tables of post-experiment questions by treatment status
+
+```{r}
+round(prop.table(table(mturk$treatment, mturk$incdiff_toolarge),1),3)
+round(prop.table(table(mturk$treatment, mturk$incdiff_benefits_rich),1),3)
+round(prop.table(table(mturk$treatment, mturk$incdiff_necessary),1),3)
+round(prop.table(table(mturk$treatment, mturk$wealthy_taxes),1),3)
+round(prop.table(table(mturk$treatment, mturk$fairshot),1),3)
+round(prop.table(table(mturk$treatment, mturk$grads_deserve_pay),1),3)
+```
+
+# Distributions of Answers to Post-Experiment Questions
+
+Setting up plots to see distributions of post-experiment questions by treatment status
+
+```{r}
+mturk_gather2 <- mturk %>%
+  gather(question, answer, incdiff_toolarge:fairshot) %>%
+  count(question, answer, treatment) %>%
+  group_by(question, treatment) %>%
+  mutate(prop = round(n / sum(n),2),
+          answer = factor(answer,
+                          levels = c("Strongly disagree",
+                                     "Disagree",
+                                     "Neutral",
+                                     "Agree",
+                                     "Strongly agree")))
+```
+
+```{r}
+question_plot <- ggplot(mturk_gather2, aes(x = answer, y = prop,
+                                           fill = factor(treatment)))
+
+question_plot + geom_col(position = "dodge") + facet_grid(question~.) +
+   scale_fill_fivethirtyeight() + ylim(c(0,0.7)) + 
+   geom_text(position = position_dodge(width = 1), 
+                aes(x = answer, y = prop, label = prop), size = 3, vjust = -.5) +
+   theme(legend.position = "bottom",
+         axis.text.y = element_blank(),
+         axis.ticks.y = element_blank(),
+         axis.title = element_blank())
+```
+
+Proportions agreeing or strongly agreeing
+
+```{r}
+mturk_agree <- mturk %>%
+  gather(question, answer, incdiff_toolarge:fairshot) %>%
+  mutate(agree = ifelse(answer == "Agree" | answer == "Strongly agree", 1, 0)) %>%
+  count(question, agree, treatment) %>%
+  group_by(question, treatment) %>%
+  mutate(prop = round(n / sum(n),2)) %>%
+  filter(agree == 1)
+```
+
+```{r}
+agree_plot <- ggplot(mturk_agree, aes(x = question, y = prop,
+                                           fill = factor(treatment)))
+
+agree_plot + geom_col(position = "dodge") +
+   scale_fill_fivethirtyeight() + ylim(c(0,1)) + 
+   geom_text(position = position_dodge(width = 1), 
+                aes(x = question, y = prop, label = prop), size = 3, vjust = -.5) +
+   theme(legend.position = "bottom",
+         axis.text.y = element_blank(),
+         axis.ticks.y = element_blank(),
+         axis.title = element_blank())
+```
+
+# Comparing Estimated and Actual Salaries
+
+Lots of ways to compare. This chunk sets up dollar differences, percent differences, log differences
+
+```{r}
+mturk_gather <- mturk_gather %>%
+  mutate(actual_salary = ifelse(job == "Investment Banker", 98349,
+                                ifelse(job == "Electrical Engineer", 73493,
+                                       ifelse(job == "Geology Research Associate", 52576,
+                                              ifelse(job == "Reporter", 35231,
+                                                     ifelse(job == "Janitor", 22303, NA))))),
+         actual_rank = ifelse(job == "Investment Banker", 95,
+                              ifelse(job == "Electrical Engineer", 90,
+                                     ifelse(job == "Geology Research Associate", 75,
+                                            ifelse(job == "Reporter", 55,
+                                                   ifelse(job == "Janitor", 25, NA)))))) %>%
+  mutate(est_salary_diff = est_salary - actual_salary,
+         est_rank_diff = est_rank - actual_rank,
+         pct_salary_diff = ((est_salary_diff / actual_salary)*100),
+         est_salary_hi = ifelse(est_salary_diff>0, 1, 0),
+         log_salary_diff = log(abs(est_salary_diff)))
+```
+
+Percent differences probably make the most sense when looking at multiple jobs
+
+```{r}
+diff_plot <- ggplot(mturk_gather, aes(x = pct_salary_diff, color = job))
+
+diff_plot + geom_density()
+```
+
+
+```{r}
+mturk_gather_plot <- mturk_gather %>%
+  gather(question, answer, incdiff_toolarge:fairshot) %>%
+  mutate(agree = ifelse(answer == "Agree" | answer == "Strongly agree", 1, 0))
+```
+
+This plot shows relationships between percent distance from actual salary (x) and estimated rank (y), by post-experiment question and by job, by response to question and treatment status. Too much going on here...not helpful. 
+
+```{r}
+scatter_plot <- ggplot(mturk_gather_plot, aes(x = pct_salary_diff, y = est_rank,
+                                              color = factor(agree), shape = factor(treatment)))
+
+scatter_plot + geom_point() + geom_jitter() + facet_grid(job ~ question) + theme(legend.position = "bottom")
+```
+
+
+# Pre-Post Comparisons
+
+First look at how responses to the post-experiment "Income Differences Are Too Large" question vary by responses to the pre-experiment "For a society to be fair, differences in people's standards of living should be small" question by treatment status (0 = control, 1 = treatment).
+
+```{r}
+before_after_plot <- ggplot(before_after, aes(x = standard_living_small_diffs, y =  prop,
+                                              fill = incdiff_toolarge))
+before_after_plot + geom_col() + facet_grid(.~treatment) + 
+  geom_text(aes(label = prop),
+              position = position_stack(vjust = .5),
+            size = 2) +
+  theme(legend.position = "bottom",
+        axis.text.x = element_text(angle = 45, hjust = 1)) +
+  coord_flip()
+```
+
+Above plot looks pretty interesting. Some evidence of a hardening of beliefs for the treatment group...see movement of respondents agreeing with standard living to strongly agreeing with income differences are too large, and movement of respondents (strongly) disagreeing with standard living to strongly disagreeing with income differences are too large. That's neat. But sample sizes are too small to get excited about these proportions.
+
+Plot all the post-experiment questions against the pre-experiment "standards of living" question, by treatment status.
+
+```{r}
+before_after_gather_1 <- mturk %>%
+  gather(question, answer, incdiff_toolarge:fairshot) %>%
+  filter(answer != "") %>%
+  group_by(question, treatment, standard_living_small_diffs) %>%
+  count(question, answer, treatment, standard_living_small_diffs) %>%
+  mutate(prop = round(n / sum(n),3),
+         prop = ifelse(prop == 0, NA, prop),
+          answer = factor(answer,
+                          levels = c("Strongly disagree",
+                                     "Disagree",
+                                     "Neutral",
+                                     "Agree",
+                                     "Strongly agree")))
+```
+
+```{r}
+before_after_gather_plot_1 <- ggplot(before_after_gather_1, aes(x = standard_living_small_diffs,
+                                                            y = prop,
+                                                            fill = answer))
+before_after_gather_plot_1 + geom_col() + facet_grid(question ~ treatment) + coord_flip() +
+  theme_tufte() + 
+  theme(legend.position = "bottom",
+        axis.text.y = element_text(size = 8),
+        strip.text = element_text(size = 5),
+        axis.text.x = element_blank(),
+        axis.title.x = element_blank(),
+        axis.ticks.x = element_blank()) +
+  geom_text(aes(label = round(prop,2)), position = position_stack(vjust = .5), size = 1.5)
+
+```
+
+All post-experiment questions by pre-experiment "It is the responsibility of the government to reduce the differences in income between people with high incomes and those with low incomes" question, by treatment status.
+```{r}
+before_after_gather_2 <- mturk %>%
+  mutate(eqwlth = factor(eqwlth,
+                         levels = c("Strongly disagree",
+                                    "Disagree",
+                                    "Neutral",
+                                    "Agree",
+                                    "Strongly agree"))) %>%
+  gather(question, answer, incdiff_toolarge:fairshot) %>%
+  filter(answer != "") %>%
+  group_by(question, treatment, eqwlth) %>%
+  count(question, answer, treatment, eqwlth) %>%
+  mutate(prop = round(n / sum(n),3),
+         prop = ifelse(prop == 0, NA, prop),
+          answer = factor(answer,
+                          levels = c("Strongly disagree",
+                                     "Disagree",
+                                     "Neutral",
+                                     "Agree",
+                                     "Strongly agree")))
+```
+
+```{r}
+before_after_gather_plot_2 <- ggplot(before_after_gather_2, aes(x = eqwlth,
+                                                            y = prop,
+                                                            fill = answer))
+before_after_gather_plot_2 + geom_col() + facet_grid(question ~ treatment) + coord_flip() +
+  theme_tufte() + 
+  theme(legend.position = "bottom",
+        axis.text.y = element_text(size = 8),
+        strip.text = element_text(size = 5),
+        axis.text.x = element_blank(),
+        axis.title.x = element_blank(),
+        axis.ticks.x = element_blank()) +
+  geom_text(aes(label = round(prop,2)), position = position_stack(vjust = .5), size = 1.5)
+
+```
+
+All post-experiment questions by pre-experiment "Students like me at the college where I received my undergraduate degree have a good chance of improving our standard of living" question, by treatment status.
+
+```{r}
+before_after_gather_3 <- mturk %>%
+  mutate(goodlife = factor(goodlife,
+                         levels = c("Strongly disagree",
+                                    "Disagree",
+                                    "Neutral",
+                                    "Agree",
+                                    "Strongly agree"))) %>%
+  gather(question, answer, incdiff_toolarge:fairshot) %>%
+  filter(answer != "") %>%
+  group_by(question, treatment, goodlife) %>%
+  count(question, answer, treatment, goodlife) %>%
+  mutate(prop = round(n / sum(n),3),
+         prop = ifelse(prop == 0, NA, prop),
+          answer = factor(answer,
+                          levels = c("Strongly disagree",
+                                     "Disagree",
+                                     "Neutral",
+                                     "Agree",
+                                     "Strongly agree")))
+```
+
+```{r}
+before_after_gather_plot_3 <- ggplot(before_after_gather_3, aes(x = goodlife,
+                                                            y = prop,
+                                                            fill = answer))
+before_after_gather_plot_3 + geom_col() + facet_grid(question ~ treatment) + coord_flip() +
+  theme_tufte() + 
+  theme(legend.position = "bottom",
+        axis.text.y = element_text(size = 8),
+        strip.text = element_text(size = 5),
+        axis.text.x = element_blank(),
+        axis.title.x = element_blank(),
+        axis.ticks.x = element_blank()) +
+  geom_text(aes(label = round(prop,2)), position = position_stack(vjust = .5), size = 1.5)
+
+```
+
+Back to the "standards of living" question...but collapse to three categories.
+
+```{r}
+before_after_gather_agree <- mturk %>%
+  gather(question, answer, incdiff_toolarge:fairshot) %>%
+  mutate(agree = ifelse(answer == "Agree" | answer == "Strongly agree", "Agree", 
+                        ifelse(answer == "Disagree" | answer == "Strongly disagree", "Disagree",
+                               "Neutral")),
+        agree = factor(agree,
+                       levels = c("Disagree", "Neutral", "Agree")),
+         goodlife = ifelse(goodlife == "Agree" | goodlife == "Strongly agree", "Agree",
+                           ifelse(goodlife == "Disagree" | goodlife == "Strongly disagree", "Disagree",
+                                  "Neutral")),
+         goodlife = factor(goodlife,
+                           levels = c("Disagree", "Neutral", "Agree")),
+          eqwlth = ifelse(eqwlth == "Agree" | eqwlth == "Strongly agree", "Agree",
+                           ifelse(eqwlth == "Disagree" | eqwlth == "Strongly disagree", "Disagree",
+                                  "Neutral")),
+         eqwlth = factor(eqwlth,
+                           levels = c("Disagree", "Neutral", "Agree")),
+           standard_living_small_diffs = ifelse(standard_living_small_diffs == "Agree" | standard_living_small_diffs == "Strongly agree", "Agree",
+                           ifelse(standard_living_small_diffs == "Disagree" | standard_living_small_diffs == "Strongly disagree", "Disagree",
+                                  "Neutral")),
+         standard_living_small_diffs = factor(standard_living_small_diffs,
+                           levels = c("Disagree", "Neutral", "Agree")),       
+         agree = factor(agree,
+                        levels = c("Disagree", "Neutral", "Agree")))
+```
+
+```{r}
+before_after_gather_4 <- before_after_gather_agree %>%
+  group_by(question, treatment, standard_living_small_diffs) %>%
+  count(question, agree, treatment, standard_living_small_diffs) %>%
+  mutate(prop = round(n / sum(n),3))
+
+before_after_gather_plot_4 <- ggplot(before_after_gather_4, aes(x = standard_living_small_diffs,
+                                                            y = prop,
+                                                            fill = agree))
+before_after_gather_plot_4 + geom_col() + facet_grid(question ~ treatment) + coord_flip() +
+  theme_tufte() + 
+  theme(legend.position = "bottom",
+        axis.text.y = element_text(size = 8),
+        strip.text = element_text(size = 10),
+        axis.text.x = element_blank(),
+        axis.title.x = element_blank(),
+        axis.ticks.x = element_blank()) +
+  geom_text(aes(label = round(prop,2)), position = position_stack(vjust = .5), size = 3)
+
+```
+
+This is the kind of plot that will be more helpful once it is cleaned up. Next step is to repeat for other pre-experiment questions.

@@ -1,0 +1,141 @@
+library(tidyverse)
+
+# Load all qualtrics responses
+
+mturk <- read.csv("mturk.csv", 
+                          header=TRUE, as.is = TRUE)
+
+mturk <- mturk[3:nrow(mturk),]
+
+names(mturk) <- tolower(names(mturk))
+
+# Load file with ids of rejected respondents
+
+mturk_rejected <- read.csv("reject_id.csv")
+mturk_rejected$responseid <- as.character(mturk_rejected$responseid)
+
+# Merge and filter out the rejects
+
+mturk <- left_join(mturk, mturk_rejected, by = "responseid")
+mturk <- filter(mturk, is.na(reject))
+
+
+# Clean up question names
+# Note: two questions are named Q17 in the Qualtrics file...
+
+mturk <- mturk %>%
+  rename(distribution_type = distributionchannel,
+         consent = q14,
+         age = q15,
+         edcat = q16,
+         college_type = q17,
+         major = q19,
+         collimp_job = q6_1,
+         collimp_gened = q6_2,
+         collimp_culture = q6_3,
+         collimp_money = q6_4,
+         collimp_learn_interesting = q6_5,
+         collimp_career_training = q6_6,
+         collimp_gradschl = q6_7,
+         collimp_please_family = q6_8,
+         jobimp_social_change = q4_1,
+         jobimp_income = q4_2,
+         jobimp_status = q4_3,
+         jobimp_stability = q4_4,
+         jobimp_creativity = q4_5,
+         jobimp_personal_values = q4_6,
+         jobimp_availability = q4_7,
+         jobimp_leadership_potential = q4_8,
+         jobimp_worklife_balance = q4_9,
+         jobimp_payoff_debt = q4_10,
+         jobimp_major = q4_11,
+         jobinfluence = q38,
+         college_experience = q41,
+         knew_poor = q39,
+         knew_rich = q40,
+         polviews = q56,
+         samechances_enter_college = q5_1,
+         samechances_after_college = q5_2,
+         college_benefit_earnings = q46_1,
+         free_college = q46_2,
+         goodlife = q46_3,
+         standard_living_small_diffs = q47_1,
+         eqwlth = q47_2,
+         getahead = q48,
+         qest1_1 = q21_1,
+         qest1_2 = q21_2,
+         qest1_3 = q21_3,
+         qest1_4 = q21_4,
+         qest1_5 = q21_5,
+         qest2_1 = q14_1,
+         qest2_2 = q23_1,
+         qest2_3 = q24_1,
+         qest2_4 = q25_1,
+         qest2_5 = q26_1,
+         word_engineer_control = q31_1,
+         word_reporter_control = q31_2,
+         word_banker_control = q31_3,
+         word_janitor_control = q31_4,
+         word_geologist_control = q31_5,
+         estcompare_engineer = q55_1,
+         estcompare_reporter = q55_2,
+         estcompare_banker = q55_3,
+         estcompare_janitor = q55_4,
+         estcompare_geologist = q55_5,
+         word_engineer_trtmnt = q44_1,
+         word_reporter_trtmnt = q44_2,
+         word_banker_trtmnt = q44_3,
+         word_janitor_trtmnt = q44_4,
+         word_geologist_trtmnt = q44_5,
+         incdiff_toolarge = q1_1,
+         incdiff_benefits_rich = q1_2,
+         incdiff_necessary = q1_3,
+         wealthy_taxes = q1_4,
+         fairshot = q1_5,
+         grads_deserve_pay = q2,
+         helppoor = q33,
+         employed = q17.1,
+         activity = q8,
+         gender = q34,
+         race = q36,
+         parent_income = q42,
+         parent1_lths = q45.1_1,
+         parent1_somehs = q45.1_2,
+         parent1_hs = q45.1_3,
+         parent1_ps_training = q45.1_4,
+         parent1_somecoll = q45.1_5,
+         parent1_college = q45.1_6,
+         parent1_somegrad = q45.1_7,
+         parent1_grad = q45.1_8,
+         parent1_unsure = q45.1_9,
+         parent2_lths = q45.2_1,
+         parent2_somehs = q45.2_2,
+         parent2_hs = q45.2_3,
+         parent2_ps_training = q45.2_4,
+         parent2_somecoll = q45.2_5,
+         parent2_college = q45.2_6,
+         parent2_somegrad = q45.2_7,
+         parent2_grad = q45.2_8,
+         parent2_unsure = q45.2_9)
+
+# Make sure only MTurk responses are included...and drop respondents who did not give salary estimates
+
+mturk <- mturk %>%
+  filter(distribution_type == "anonymous" &
+           q37!="") %>%
+  mutate(estcompare_janitor = ifelse(estcompare_janitor == "", NA, estcompare_janitor),
+         estcompare_reporter = ifelse(estcompare_reporter == "", NA, estcompare_reporter),
+         estcompare_geologist = ifelse(estcompare_geologist == "", NA, estcompare_geologist),
+         estcompare_engineer = ifelse(estcompare_engineer == "", NA, estcompare_engineer),
+         estcompare_banker = ifelse(estcompare_banker == "", NA, estcompare_banker)) %>%
+  mutate(treatment = ifelse(is.na(estcompare_janitor) & is.na(estcompare_reporter) & 
+                            is.na(estcompare_geologist) & is.na(estcompare_engineer) &
+                            is.na(estcompare_banker), 0, 1))
+
+
+# Save file as `mturk_clean.csv` to use in `analysis_1.Rmd`
+
+write.csv(mturk, "/users/lawrence/desktop/perceiving_inequality/mturk/mturk_clean.csv")
+
+
+
