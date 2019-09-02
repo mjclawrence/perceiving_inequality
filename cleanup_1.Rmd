@@ -140,7 +140,7 @@ mturk <- mturk %>%
 
 # Save file as `mturk_clean.csv` to use in `analysis_1.Rmd`
 
-write.csv(mturk, "/users/lawrence/desktop/perceiving_inequality/mturk/mturk_clean.csv")
+write.csv(mturk, "mturk_clean.csv")
 
 
 
