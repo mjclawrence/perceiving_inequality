@@ -2,32 +2,39 @@
 title: "Clean Up 1"
 output: pdf_document
 ---
+
+Load all qualtrics responses
+
 ```{r}
 library(tidyverse)
 
-# Load all qualtrics responses
-
 mturk <- read.csv("mturk.csv")
-```
 
 mturk <- mturk[3:nrow(mturk),]
 
 names(mturk) <- tolower(names(mturk))
+```
 
-# Load file with ids of rejected respondents
 
+Load file with ids of rejected respondents
+
+```{r}
 mturk_rejected <- read.csv("reject_id.csv")
 mturk_rejected$responseid <- as.character(mturk_rejected$responseid)
+```
 
-# Merge and filter out the rejects
+Merge and filter out the rejects
 
+```{}
 mturk <- left_join(mturk, mturk_rejected, by = "responseid")
 mturk <- filter(mturk, is.na(reject))
+```
 
+Clean up question names
 
-# Clean up question names
-# Note: two questions are named Q17 in the Qualtrics file...
+### Note: two questions are named Q17 in the Qualtrics file...
 
+```{r}
 mturk <- mturk %>%
   rename(distribution_type = distributionchannel,
          consent = q14,
@@ -122,9 +129,12 @@ mturk <- mturk %>%
          parent2_somegrad = q45.2_7,
          parent2_grad = q45.2_8,
          parent2_unsure = q45.2_9)
+```
 
-# Make sure only MTurk responses are included...and drop respondents who did not give salary estimates
 
+Make sure only MTurk responses are included...and drop respondents who did not give salary estimates
+
+```{r}
 mturk <- mturk %>%
   filter(distribution_type == "anonymous" &
            q37!="") %>%
@@ -136,11 +146,11 @@ mturk <- mturk %>%
   mutate(treatment = ifelse(is.na(estcompare_janitor) & is.na(estcompare_reporter) & 
                             is.na(estcompare_geologist) & is.na(estcompare_engineer) &
                             is.na(estcompare_banker), 0, 1))
+```
 
+Save file as `mturk_clean.csv` to use in `analysis_1.Rmd`
 
-# Save file as `mturk_clean.csv` to use in `analysis_1.Rmd`
-
+```{r}
 write.csv(mturk, "mturk_clean.csv")
-
-
+```
 
