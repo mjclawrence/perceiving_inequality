@@ -8,7 +8,7 @@ output: pdf_document
 ```{r}
 library(tidyverse)
 library(ggthemes)
-mturk <- read.csv("/users/lawrence/desktop/perceiving_inequality/mturk/mturk_clean.csv")
+mturk <- read.csv("mturk_clean.csv")
 ```
 
 # Clean Up
