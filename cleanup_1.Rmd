@@ -1,11 +1,14 @@
-# Where do these changes go?
-
+---
+title: "Untitled"
+output: pdf_document
+---
+```{r}
 library(tidyverse)
 
 # Load all qualtrics responses
 
-mturk <- read.csv("mturk.csv", 
-                          header=TRUE, as.is = TRUE)
+mturk <- read.csv("mturk.csv")
+```
 
 mturk <- mturk[3:nrow(mturk),]
 
